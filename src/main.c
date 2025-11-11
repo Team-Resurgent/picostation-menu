@@ -52,6 +52,7 @@
 #include "counters.h"
 #include "ps1/gte.h"
 #include "logging.h"
+#include "modplayer.h"
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -495,6 +496,9 @@ static void printScroll(DMAChain *chain, const TextureInfo *font, int x, int y, 
 
 extern const uint8_t fontTexture[], fontPalette[], logoTexture[], logoPalette[];
 extern const uint8_t click_sfx[], slide_sfx[];
+extern const uint8_t timewarped_hit[];
+
+static uint16_t s_nextCounter = 0;
 
 #define c_maxFilePathLength 255
 #define c_maxFilePathLengthWithTerminator c_maxFilePathLength + 1
@@ -554,6 +558,13 @@ uint32_t list_load(void *sectorBuffer, uint8_t command, uint16_t argument)
 	file_manager_sort(fileEntryCount);
 	file_manager_clean_list(&fileEntryCount);
 	return fileEntryCount;
+}
+
+static void checkMusic() {
+    if (((int16_t)(s_nextCounter - COUNTERS[1].value)) <= 0) {
+        MOD_Poll();
+        s_nextCounter += MOD_hblanks;
+    }
 }
 
 int main(int argc, const char **argv)
@@ -694,8 +705,6 @@ int main(int argc, const char **argv)
 			temp.height = logo.height;
 			drawScaled(chain, &logo, &temp, (320 - logowidth) / 2, 10, logowidth, logo.height, true);
 		}
-
-		char controllerbuffer[256];
 
 		// get the controller button press
 		uint16_t buttons = getButtonPress(0);

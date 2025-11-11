@@ -154,7 +154,7 @@ static void SPUKeyOn(uint32_t voiceBits) {
 static void SPUSetVoiceSampleRate(int voiceID, uint16_t sampleRate) { SPU_VOICES[voiceID].sampleRate = sampleRate; }
 
 unsigned MOD_Check(const struct MODFileFormat* module) {
-    const char* s = module->signature;
+    const char* s = (char*)module->signature;
     if ((s[0] == 'H') && (s[1] == 'I') && (s[2] == 'T')) {
         return module->signature[3] - '0';
     } else if ((s[0] == 'H') && (s[1] == 'M')) {
@@ -428,10 +428,9 @@ static void MOD_UpdateEffect() {
         uint8_t effectNibble3 = effectNibble23 >> 4;
 
         uint8_t arpeggioTick;
-        int32_t newPeriod;
+        int32_t newPeriod = 0;
         int16_t volume;
         uint16_t slideTo;
-        uint8_t fx;
         uint32_t mutation;
         int8_t newValue;
 
@@ -651,14 +650,15 @@ static void MOD_UpdateRow() {
             if (effectNibble1 != 7) {
                 SETVOICEVOLUME(channel, volume);
             }
-            SPUSetStartAddress(channel, s_spuInstrumentData[sampleID].baseAddress << 4 + channelData->samplePos);
+            SPUSetStartAddress(channel, (s_spuInstrumentData[sampleID].baseAddress << 4) + channelData->samplePos);
             s_channelPeak[channel] = 255;
         }
 
         if (period != 0) {
             int periodIndex;
             // original code erroneously does >= 0
-            for (periodIndex = 35; periodIndex--; periodIndex > 0) {
+            for (periodIndex = 35; periodIndex > 0; periodIndex--)
+            {
                 if (MOD_PeriodTable[periodIndex] == period) break;
             }
             channelData->note = periodIndex + s_spuInstrumentData[channelData->sampleID].finetune * 36;
@@ -858,7 +858,7 @@ void MOD_PlayNote(unsigned channel, unsigned sampleID, unsigned note, int16_t vo
     struct SPUChannelData* const channelData = &s_channelData[channel];
     channelData->samplePos = 0;
     SPUSetVoiceVolume(channel, volume << 8, volume << 8);
-    SPUSetStartAddress(channel, s_spuInstrumentData[sampleID].baseAddress << 4 + channelData->samplePos);
+    SPUSetStartAddress(channel, (s_spuInstrumentData[sampleID].baseAddress << 4) + channelData->samplePos);
     SPUWaitIdle();
     SPUKeyOn(1 << channel);
     channelData->note = note = note + s_spuInstrumentData[sampleID].finetune * 36;
