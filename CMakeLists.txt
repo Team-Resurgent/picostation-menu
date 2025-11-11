@@ -119,7 +119,7 @@ if(WIN32)
     set(IMAGE_SCRIPT "${PROJECT_SOURCE_DIR}/make-xiso.bat")
     set(PLATFORM_NAME "Windows")
 else()
-    set(IMAGE_SCRIPT "${PROJECT_SOURCE_DIR}/makeimage.sh")
+    set(IMAGE_SCRIPT "${PROJECT_SOURCE_DIR}/make-xiso.sh")
     set(PLATFORM_NAME "Unix/Linux")
 endif()
 

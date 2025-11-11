@@ -666,11 +666,6 @@ int main(int argc, const char **argv)
 		ptr[2] = gp0_xy(SCREEN_WIDTH, SCREEN_HEIGHT);
 
 
-		for (int i = 0; i < 4; i++)
-		{
-			uint8_t peak = (MOD_Peak(i) * 240) / 255;
-			drawGradientRectD(chain, 10 + (i * 80), 240 - peak, 60, peak,  gp0_rgb(255, 0, 0), gp0_rgb(255, 255, 0), gp0_rgb(0, 255, 0), true);
-		}
 
 		//draw logo
 		//if (firstboot == 0 && loadingmenu == 0){
@@ -685,7 +680,11 @@ int main(int argc, const char **argv)
 		}
 		else 
 		{
-
+			for (int i = 0; i < 4; i++)
+			{
+				uint8_t peak = (MOD_Peak(i) * 240) / 255;
+				drawGradientRectD(chain, 10 + (i * 80), 240 - peak, 60, peak,  gp0_rgb(255, 0, 0), gp0_rgb(255, 255, 0), gp0_rgb(0, 255, 0), true);
+			}
 
 			delay_logo += 1;
 			if (delay_logo == 2)
@@ -863,14 +862,14 @@ int main(int argc, const char **argv)
 			printString(
 				chain, &font, 40, 40,
 
-				"PicosStation Plus Menu Alpha Release");
+				"PicosStation/Plus Menu Alpha Release");
 
 			// printString(
 			// 	chain, &font, 40, 120,
 			// 	"https://github.com/team-Resurgent/picostation-menu");
 
 			printScroll(chain, &font, 0, 120,
-				"Well here it is the PicosStation/Plus Credits.... Huge thanks go to Rama, Skitchin, SpicyJpeg, Danhans42, NicholasNoble and ChatGPT... Shout outs go out to every one on the PSX Dev & Xbox-Scene Discord... Until next time EqUiNoX and Raijun......................................................................................................"
+				"Well here it is the PicosStation/Plus Credits.... Huge thanks go to Rama, Megavolt, Skitchin, SpicyJpeg, Danhans42, NicholasNoble and ChatGPT... Shout outs go out to every one on the PSX Dev & Xbox-Scene Discord... Until next time......................................................................................................"
 			);
 
 			checkMusic();
