@@ -33,7 +33,8 @@
  * serial ports and their usage, although I tried to add as many comments as I
  * could to explain what is going on under the hood.
  */
-
+ 
+#include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -41,8 +42,15 @@
 #include "ps1/registers.h"
 #include "controller.h"
 #include "psxproject/system.h"
- 
- void initControllerBus(void) {
+#include "logging.h"
+
+#if DEBUG_CONTROLLER
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_PRINT(...) while (0)
+#endif
+
+void initControllerBus(void) {
      // Reset the serial interface, initialize it with the settings used by
      // controllers and memory cards (250000bps, 8 data bits) and configure it to
      // send a signal to the interrupt controller whenever the DSR input is
@@ -57,7 +65,7 @@
          | SIO_CTRL_TX_ENABLE
          | SIO_CTRL_RX_ENABLE
          | SIO_CTRL_DSR_IRQ_ENABLE;
- }
+}
  
 bool waitForAcknowledge(int timeout) {
      // Controllers and memory cards will acknowledge bytes received by sending
@@ -79,9 +87,7 @@ bool waitForAcknowledge(int timeout) {
      }
  
      return false;
- }
- 
-
+}
  
  #define DTR_DELAY       150
  #define DTR_PRE_DELAY   10
@@ -98,7 +104,7 @@ bool waitForAcknowledge(int timeout) {
          SIO_CTRL(0) |= SIO_CTRL_CS_PORT_2;
      else
          SIO_CTRL(0) &= ~SIO_CTRL_CS_PORT_2;
- }
+}
  
  uint8_t exchangeByte(uint8_t value) {
      // Wait until the interface is ready to accept a byte to send, then wait for
@@ -114,7 +120,7 @@ bool waitForAcknowledge(int timeout) {
          __asm__ volatile("");
  
      return SIO_DATA(0);
- }
+}
  
  int exchangePacket(
      DeviceAddress address, const uint8_t *request, uint8_t *response,
@@ -166,52 +172,11 @@ bool waitForAcknowledge(int timeout) {
      SIO_CTRL(0) &= ~SIO_CTRL_DTR;
      delayMicroseconds(DTR_POST_DELAY);
      return respLength;
- }
- 
- // All packets sent by controllers in response to a poll command include a 4-bit
- // device type identifier as well as a bitfield describing the state of up to 16
- // buttons.
- static const char *const controllerTypes[] = {
-     "Unknown",            // ID 0x0
-     "Mouse",              // ID 0x1
-     "neGcon",             // ID 0x2
-     "Konami Justifier",   // ID 0x3
-     "Digital controller", // ID 0x4
-     "Analog stick",       // ID 0x5
-     "Guncon",             // ID 0x6
-     "Analog controller",  // ID 0x7
-     "Multitap",           // ID 0x8
-     "Keyboard",           // ID 0x9
-     "Unknown",            // ID 0xa
-     "Unknown",            // ID 0xb
-     "Unknown",            // ID 0xc
-     "Unknown",            // ID 0xd
-     "Jogcon",             // ID 0xe
-     "Configuration mode"  // ID 0xf
- };
- 
- static const char *const buttonNames[] = {
-     "Select",   // Bit 0
-     "L3",       // Bit 1
-     "R3",       // Bit 2
-     "Start",    // Bit 3
-     "Up",       // Bit 4
-     "Right",    // Bit 5
-     "Down",     // Bit 6
-     "Left",     // Bit 7
-     "L2",       // Bit 8
-     "R2",       // Bit 9
-     "L1",       // Bit 10
-     "R1",       // Bit 11
-     "Triangle", // Bit 12
-     "Circle",   // Bit 13
-     "X",        // Bit 14
-     "Square"    // Bit 15
- };
+}
  
  uint16_t getButtonPress(int port) {
      // Build the request packet.
-     uint8_t request[4], response[8];
+     uint8_t request[4], response[32];
 
  
      request[0] = CMD_POLL; // Command
@@ -227,41 +192,18 @@ bool waitForAcknowledge(int timeout) {
          ADDR_CONTROLLER, request, response, sizeof(request), sizeof(response)
      );
  
-    // ptr += sprintf(ptr, "Port %d:\n", port + 1);
- 
-     if (respLength < 4) {
+     if (respLength < 4 || response[1] != 0x5A) {
          // All controllers reply with at least 4 bytes of data.
     //     ptr += sprintf(ptr, "  No controller connected");
          return 0x00;
      }
- 
-     // The first byte of the response contains the device type ID in the upper
-     // nibble, as well as the length of the packet's payload in 2-byte units in
-     // the lower nibble.
-    /*  ptr += sprintf(
-         ptr,
-         "  Controller type:\t%s\n"
-         "  Buttons pressed:\t",
-         controllerTypes[response[0] >> 4]
-     );
-     */
+     
      // Bytes 2 and 3 hold a bitfield representing the state all buttons. As each
      // bit is active low (i.e. a zero represents a button being pressed), the
      // entire field must be inverted.
      uint16_t buttons = (response[2] | (response[3] << 8)) ^ 0xffff;
      return buttons;
-     /*
-     for (int i = 0; i < 16; i++) {
-         if ((buttons >> i) & 1)
-             ptr += sprintf(ptr, "%s ", buttonNames[i]);
-     }
-    */
-    // ptr += sprintf(ptr, "\n  Response data:\t");
- 
-    // for (int i = 0; i < respLength; i++)
-    //     ptr += sprintf(ptr, "%02X ", response[i]);
-
- }
+}
 
 
 void sendPacketNoAcknowledge(
@@ -285,7 +227,41 @@ void sendPacketNoAcknowledge(
     SIO_CTRL(0) &= ~SIO_CTRL_DTR;
 }
 
-void sendGameID(const char *str) {
+uint8_t checkMCPpresent(void)
+{
+	uint8_t ret = 0;
+	uint8_t request[5] = {CMD_GAME_ID_PING, 0, 0, 0, 0 };
+	uint8_t response  [5];
+	uint8_t requestID = CMD_CARD_IDENTIFY;
+	uint8_t responseID[9];
+	
+	for (int i = 0; i < 2; i++)
+	{
+		memset(response  , 0, 5);
+		memset(responseID, 0, 9);
+		selectPort(i);
+		int respLength = exchangePacket(ADDR_MEMORY_CARD, &requestID, responseID, 1, sizeof(responseID));
+		
+		respLength = exchangePacket(ADDR_MEMORY_CARD, request, response, sizeof(request), sizeof(response));
+		
+		if (respLength == 5 && response[3] == 0x27 && response[4] == 0xFF)
+		{
+			ret |= (1 << i);
+		}
+#if DEBUG_CONTROLLER
+		DEBUG_PRINT("Port %d response: ", i);
+		for (int n = 0; n < 5; n++)
+		{
+			DEBUG_PRINT("%02X ", response[n]);
+		}
+		DEBUG_PRINT("\n");
+#endif
+	}
+	
+	return ret;
+}
+
+void sendGameID(const char *str, uint8_t card) {
     uint8_t request[64];
     size_t  length = strlen(str) + 1;
 
@@ -295,8 +271,13 @@ void sendGameID(const char *str) {
     __builtin_strncpy((char *)&request[3], str, length);
 
     // Send the ID on both ports.
-    for (int i = 0; i < 2; i++) {
-        selectPort(i);
-        sendPacketNoAcknowledge(ADDR_MEMORY_CARD, request, length+3);
+    for (int i = 0; i < 2; i++)
+    {
+		if (card & (1 << i))
+		{
+			selectPort(i);
+			sendPacketNoAcknowledge(ADDR_MEMORY_CARD, request, length+3);
+        }
     }
 }
+
